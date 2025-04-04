@@ -1,9 +1,10 @@
-import requests as q
+import requests
 from lxml import html
 import git
 import logging
 from contextlib import contextmanager
 import os
+import sys
 import shutil
 
 logging.basicConfig(level=logging.DEBUG)
@@ -11,7 +12,7 @@ logging.basicConfig(level=logging.DEBUG)
 
 def fetch_sdk_version():
     url = "https://www.foobar2000.org/SDK"
-    response = q.get(url)
+    response = requests.get(url)
     response.raise_for_status()  # Raise an error for HTTP issues
     tree = html.fromstring(response.content)
 
@@ -42,7 +43,7 @@ def create_tagged_version_safe(repo, tag_name, ver_link):
 
         # download the SDK version and save it to the repo
         with open(archive_name, "wb") as f:
-            response = q.get(ver_link, stream=True)
+            response = requests.get(ver_link, stream=True)
             response.raise_for_status()
             for chunk in response.iter_content(chunk_size=8192):
                 f.write(chunk)
@@ -90,6 +91,7 @@ def create_tagged_version(repo, tag_name, ver_link):
 
 
 if __name__ == "__main__":
+
     try:
         elements = fetch_sdk_version()
         links = {
@@ -107,7 +109,9 @@ if __name__ == "__main__":
             else:
                 logging.debug(f"Creating new tag {tag_name}.")
                 create_tagged_version(repo, tag_name, links[k])
-
+        if sys.argv[1] == "push":
+            logging.info("Pushing changes to remote.")
+            repo.git.push("origin", "--tags")
     except Exception as e:
         logging.error(f"Error: {e}")
         exit(1)

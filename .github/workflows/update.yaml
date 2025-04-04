@@ -38,5 +38,5 @@ jobs:
       - name: Run fetch script
         run: |
           git pull --ff-only --all --tags
-          python fetch.py
+          python fetch.py push
           git tag --list
