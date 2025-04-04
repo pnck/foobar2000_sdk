@@ -24,7 +24,10 @@ def fetch_sdk_version():
 
 def fetch_repo():
     repo = git.Repo(".")
-    repo.remotes.origin.fetch()
+    repo.git.fetch("--tags")
+    logging.debug(f"Fetched tags: {[t.name for t in repo.tags]}")
+    logging.debug(f"Branches: {[b.name for b in repo.branches]}")
+    logging.debug(f"Remote Refs: {[b.name for b in repo.remote().refs]}")
     return repo
 
 
@@ -34,7 +37,7 @@ def create_tagged_version_safe(repo, tag_name, ver_link):
     archive_name = "foobar2000-sdk.7z"
     try:
         # create a new branch from the main branch
-        new_branch = repo.create_head(tag_name, repo.heads["main"])
+        new_branch = repo.create_head(tag_name, "origin/main")
         new_branch.checkout()
 
         # download the SDK version and save it to the repo
@@ -45,7 +48,12 @@ def create_tagged_version_safe(repo, tag_name, ver_link):
                 f.write(chunk)
 
         # extract the archive with 7z command
-        os.system(f"7zz x {archive_name} -y")
+        _7z = shutil.which("7z")
+        if _7z is None:
+            _7z = shutil.which("7zz")
+        if _7z is None:
+            raise FileNotFoundError("7z or 7zz command not found.")
+        os.system(f"{_7z} x {archive_name} -y")
         # remove the archive
         os.remove(archive_name)
         # add the files to the repo
@@ -57,11 +65,14 @@ def create_tagged_version_safe(repo, tag_name, ver_link):
 
         yield new_branch
     except Exception as e:
-        if repo.active_branch.name == new_branch.name:
+        if repo.active_branch.name != cur_branch.name:
             repo.git.reset("--hard")
             # repo.git.clean("-fd")
             cur_branch.checkout()
-            repo.delete_head(new_branch, force=True)
+            try:
+                repo.delete_head(new_branch, force=True)
+            finally:
+                pass
         raise e
     finally:
         cur_branch.checkout()
@@ -77,9 +88,10 @@ def create_tagged_version(repo, tag_name, ver_link):
     # delete the branch after use by name
     repo.delete_head(tag_name, force=True)
 
+
 if __name__ == "__main__":
     try:
-        elements = fetch_sdk_version()[:2]
+        elements = fetch_sdk_version()
         links = {
             x.text.strip(): f"https://www.foobar2000.org{x.attrib['href'].replace('getfile','files')}"
             for x in elements
@@ -95,6 +107,7 @@ if __name__ == "__main__":
             else:
                 logging.debug(f"Creating new tag {tag_name}.")
                 create_tagged_version(repo, tag_name, links[k])
-        
+
     except Exception as e:
         logging.error(f"Error: {e}")
+        exit(1)
