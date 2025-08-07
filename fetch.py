@@ -90,6 +90,30 @@ def create_tagged_version(repo, tag_name, ver_link):
     repo.delete_head(tag_name, force=True)
 
 
+def update_date(repo):
+    cur_branch = repo.active_branch
+    from datetime import datetime
+
+    date = datetime.now().strftime(r"%Y%m%d")
+    try:
+        repo.branches["fetch"].checkout()
+        r = repo.remote("origin").pull("fetch")[0]
+        if r.flags == 0:
+            with open("README.md", "r+") as f:
+                lines = f.readlines()
+                for l in lines:
+                    if l.startswith("> Last run:"):
+                        lines[lines.index(l)] = f"> Last run: {date}\n"
+                f.seek(0)
+                f.truncate(0)
+                f.writelines(lines)
+            updated_files = ["README.md"]
+            repo.index.add(updated_files)
+            repo.index.commit(f"update at {date}")
+    finally:
+        cur_branch.checkout()
+
+
 if __name__ == "__main__":
 
     try:
@@ -109,9 +133,11 @@ if __name__ == "__main__":
             else:
                 logging.debug(f"Creating new tag {tag_name}.")
                 create_tagged_version(repo, tag_name, links[k])
-        if sys.argv[1] == "push":
+        if len(sys.argv) > 1 and sys.argv[1] == "push":
             logging.info("Pushing changes to remote.")
             repo.git.push("origin", "--tags")
+            update_date(repo)
+            repo.git.push("origin", "fetch")
     except Exception as e:
         logging.error(f"Error: {e}")
         exit(1)
