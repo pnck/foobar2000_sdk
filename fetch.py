@@ -16,7 +16,7 @@ def fetch_sdk_version():
     response.raise_for_status()  # Raise an error for HTTP issues
     tree = html.fromstring(response.content)
 
-    version_element = tree.xpath("//a[contains(@href, '/getfile/')]")
+    version_element = tree.xpath("//a[contains(@href, '/downloads/')]")
     if version_element:
         return version_element
     else:
@@ -119,15 +119,19 @@ if __name__ == "__main__":
     try:
         elements = fetch_sdk_version()
         links = {
-            x.text.strip(): f"https://www.foobar2000.org{x.attrib['href'].replace('getfile','files')}"
+            x.attrib["href"]
+            .strip()
+            .replace("/downloads/SDK-", "")
+            .replace(".7z", "")
+            .replace(".zip", ""): f"https://www.foobar2000.org{x.attrib['href']}"
             for x in elements
-            if "SDK " in x.text
+            if x.attrib.get("href").startswith("/downloads/SDK-")
         }
         logging.debug(f"Found foobar2000 SDK versions: {[k for k in links.keys()]}")
         repo = fetch_repo()
         repo_tags = {t.name: t for t in repo.tags}
         for k in links.keys():
-            tag_name = k.split(" ")[1]
+            tag_name = k
             if tag_name in repo_tags:
                 logging.debug(f"Tag {tag_name} already exists.")
             else:
